@@ -17,8 +17,8 @@ var (
 		"int64":   FieldParserInt64,
 		"float32": FieldParserFloat32,
 		"float64": FieldParserFloat64,
-		"boolean": FieldParserBool,
-		"time":    FieldParserTime,
+		"bool":    FieldParserBool,
+		"Time":    FieldParserTime,
 		"timeUN":  FieldParserTimeUnixNano,
 	}
 
@@ -167,10 +167,10 @@ func FieldParserTime(field string) (interface{}, error) {
 	for _, layout := range timeLayouts {
 		t, err := time.Parse(layout, field)
 		if err == nil {
-			return t.Format(layout), nil
+			return t, nil
 		}
 	}
-	return "", errors.New("field time format error")
+	return time.Time{}, errors.New("field time format error")
 }
 
 func FieldParserTimeWithLayout(field string, layout string) (interface{}, error) {

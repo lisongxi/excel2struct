@@ -80,10 +80,9 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		return fmt.Errorf("the pointer of the slice element must point to a struct")
 	}
 
-	fieldNum := structType.NumField()
 	structIdxFieldMetaMap := make(map[int]FieldMetadata)
 	structFieldMetaMap := make(map[string]FieldMetadata)
-	for i := 0; i < fieldNum; i++ {
+	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
 		excelTag := field.Tag.Get("excel")
 		excelTags := strings.Split(excelTag, ",")
@@ -97,7 +96,8 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		if parserTag == "" || len(parserTags) == 0 || parserTags[0] == "-" {
 			parser := structType.Field(i).Type.Name()
 			fieldMetadata := FieldMetadata{
-				StName:   field.Name,
+				FIndex:   i,
+				FName:    field.Name,
 				Excel:    strings.TrimSpace(excelTags[0]),
 				Parser:   parser,
 				Required: required,
@@ -107,7 +107,8 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 			continue
 		}
 		fieldMetadata := FieldMetadata{
-			StName:   field.Name,
+			FIndex:   i,
+			FName:    field.Name,
 			Excel:    strings.TrimSpace(excelTags[0]),
 			Parser:   strings.TrimSpace(parserTags[0]),
 			Required: required,
@@ -148,29 +149,49 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 	if !out.IsValid() {
 		return fmt.Errorf("the out is invalid")
 	}
-	//output := reflect.Indirect(out)
+
+	outElem := out.Elem()
+
 	for colIdx, field := range row {
 		field = strings.TrimSpace(field)
-		if title, ok := titleMap[colIdx]; ok {
-			if fieldMeta, ok := structFieldMetaMap[title]; ok {
-				if fieldMeta.Excel == title {
-					if fieldParser, registered := ep.fieldParsers[fieldMeta.Parser]; registered {
-						value, err := fieldParser(field)
-						if err != nil {
-							if fieldMeta.Required {
-								return err
-							}
-							continue
-						}
-						out.Elem().FieldByName(fieldMeta.StName).Set(reflect.ValueOf(value))
-						continue
-					}
-					return fmt.Errorf("field parser [%s] not registered", fieldMeta.Parser)
-				}
-			}
+		title, ok := titleMap[colIdx]
+		if !ok {
+			continue
 		}
+
+		fieldMeta, ok := structFieldMetaMap[title]
+		if !ok {
+			continue
+		}
+
+		fieldParser, registered := ep.fieldParsers[fieldMeta.Parser]
+		if !registered {
+			return fmt.Errorf("field parser [%s] not registered", fieldMeta.Parser)
+		}
+
+		value, err := fieldParser(field)
+		if err != nil {
+			if fieldMeta.Required {
+				return fmt.Errorf("failed to parse required field %s (row %d, col %d): %v", fieldMeta.FName, rowIndex, colIdx, err)
+			}
+			continue
+		}
+
+		thisField := outElem.Field(fieldMeta.FIndex)
+		if !thisField.CanSet() && !thisField.IsValid() {
+			return fmt.Errorf("field not found in struct or cannot be set")
+		}
+
+		rvo := reflect.ValueOf(value)
+		if thisField.Kind() == reflect.Ptr && rvo.IsZero() {
+			thisField.Set(reflect.Zero(thisField.Type()))
+			continue
+		}
+
+		thisField.Set(rvo)
 	}
-	return
+
+	return nil
 }
 
 func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([][]string, error) {
