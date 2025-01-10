@@ -14,24 +14,20 @@ import (
 )
 
 type ExcelParser struct {
-	fileName             string
-	headerIndex          int
-	sheetName            string
-	length               int
-	fieldParsers         map[string]FieldParser
-	timeLayoutParsers    map[string]TimeLayoutParser
-	timeLocLayoutParsers map[string]TimeLocLayoutParser
+	fileName     string
+	headerIndex  int
+	sheetName    string
+	length       int
+	fieldParsers map[string]FieldParser
 }
 
 func NewExcelParser(fileName string, headerIndex int, sheetName string, length int, opts ...Option) (*ExcelParser, error) {
 	excelParser := &ExcelParser{
-		fileName:             fileName,
-		headerIndex:          headerIndex,
-		sheetName:            sheetName,
-		length:               length,
-		fieldParsers:         DefaultFieldParserMap,
-		timeLayoutParsers:    TimeLayoutParserMap,
-		timeLocLayoutParsers: TimeLocLayoutParserMap,
+		fileName:     fileName,
+		headerIndex:  headerIndex,
+		sheetName:    sheetName,
+		length:       length,
+		fieldParsers: DefaultFieldParserMap,
 	}
 	for _, opt := range opts {
 		if err := opt(excelParser); err != nil {
@@ -134,7 +130,9 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 	}
 
 	results := reflect.MakeSlice(sliceType, 0, ep.length)
-	for idx, row := range rows[ep.headerIndex+1:] {
+	rows = rows[ep.headerIndex+1:]
+
+	for idx, row := range rows {
 		out := reflect.New(structType)
 		parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
 		if parsedErr != nil {
