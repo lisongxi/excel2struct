@@ -6,4 +6,5 @@ type FieldMetadata struct {
 	Excel    string
 	Parser   string
 	Required bool
+	Default  string
 }

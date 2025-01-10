@@ -162,7 +162,7 @@ func FieldParserBool(field string) (interface{}, error) {
 
 func FieldParserTime(field string) (interface{}, error) {
 	if len(field) == 0 {
-		return "", nil
+		return time.Time{}, nil
 	}
 	for _, layout := range timeLayouts {
 		t, err := time.Parse(layout, field)
@@ -197,13 +197,15 @@ func FieldParserTimeWithLayoutLoc(field string, loc *time.Location, layout strin
 
 func FieldParserTimeUnixNano(field string) (interface{}, error) {
 	if len(field) == 0 {
-		return 0, nil
+		return int64(0), nil
 	}
-	t, err := time.Parse("2006-01-02 15:04:05", field)
-	if err != nil {
-		return 0, err
+	for _, layout := range timeLayouts {
+		t, err := time.Parse(layout, field)
+		if err == nil {
+			return t.UnixNano(), nil
+		}
 	}
-	return t.UnixNano(), nil
+	return int64(0), errors.New("field time UNIX Nano format error")
 }
 
 func FieldParserTimeWithLayoutUnixNano(field string, layout string) (interface{}, error) {

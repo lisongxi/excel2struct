@@ -16,11 +16,12 @@ type FileStruct struct {
 	Name       string    `gorm:"name" excel:"name,required"`
 	Age        int8      `gorm:"age" excel:"age,required"`
 	Address    string    `gorm:"address" excel:"address"`
-	Birthday   time.Time `gorm:"birthday" excel:"birthday,required" parser:"time"`
+	Birthday   time.Time `gorm:"birthday" excel:"birthday,required"`
 	Height     float64   `gorm:"height" excel:"height,required"`
 	IsStaff    bool      `gorm:"id_staff" excel:"isStaff,required"`
 	Speed      int16     `gorm:"speed" excel:"speed"`
 	Hobby      string    `gorm:"hobby" excel:"爱好"`
+	WhatTime   int64     `gorm:"what_time" excel:"whatTime" parser:"timeUN"`
 	CreateTime int64     `gorm:"create_time"`
 }
 

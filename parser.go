@@ -3,6 +3,7 @@ package excel2struct
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -90,6 +91,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 			continue
 		}
 		required := strings.Contains(excelTag, "required")
+		defaultVal := field.Tag.Get("default")
 
 		parserTag := field.Tag.Get("parser")
 		parserTags := strings.Split(parserTag, ",")
@@ -101,6 +103,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 				Excel:    strings.TrimSpace(excelTags[0]),
 				Parser:   parser,
 				Required: required,
+				Default:  defaultVal,
 			}
 			structIdxFieldMetaMap[i] = fieldMetadata
 			structFieldMetaMap[excelTags[0]] = fieldMetadata
@@ -112,42 +115,43 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 			Excel:    strings.TrimSpace(excelTags[0]),
 			Parser:   strings.TrimSpace(parserTags[0]),
 			Required: required,
+			Default:  defaultVal,
 		}
 		structIdxFieldMetaMap[i] = fieldMetadata
 		structFieldMetaMap[excelTags[0]] = fieldMetadata
 	}
-	titleMap := make(map[int]string)
-	array := reflect.MakeSlice(sliceType, 0, ep.length)
-	for idx, row := range rows {
-		temp := row
-		if idx < ep.headerIndex {
-			continue
-		}
-		if idx == ep.headerIndex {
-			titleMap, err = ep.parseTitle(temp, structFieldMetaMap)
-			if err != nil {
-				return err
-			}
-			continue
-		}
 
+	if ep.headerIndex >= len(rows) {
+		return errors.New("error excel header index")
+	}
+	if ep.headerIndex == len(rows)-1 {
+		return nil
+	}
+
+	titleMap, err := ep.parseTitle(rows[ep.headerIndex], structFieldMetaMap)
+	if err != nil {
+		return
+	}
+
+	results := reflect.MakeSlice(sliceType, 0, ep.length)
+	for idx, row := range rows[ep.headerIndex+1:] {
 		out := reflect.New(structType)
-		parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, temp, titleMap, out)
+		parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
 		if parsedErr != nil {
 			continue
 		}
-		array = reflect.Append(array, out)
+		results = reflect.Append(results, out)
 	}
-	outputValue.Elem().Set(array)
+	outputValue.Elem().Set(results)
 	return
 }
 
 func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, structFieldMetaMap map[string]FieldMetadata, row []string, titleMap map[int]string, out reflect.Value) (err error) {
 	if out.Kind() != reflect.Ptr {
-		return fmt.Errorf("the out must be a pointer")
+		return fmt.Errorf("the slice element must be a pointer")
 	}
 	if !out.IsValid() {
-		return fmt.Errorf("the out is invalid")
+		return fmt.Errorf("the slice element is invalid")
 	}
 
 	outElem := out.Elem()
@@ -161,7 +165,7 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 
 		fieldMeta, ok := structFieldMetaMap[title]
 		if !ok {
-			continue
+			return fmt.Errorf("row Index:%d, column:%s, no struct field matching found", rowIndex, title)
 		}
 
 		fieldParser, registered := ep.fieldParsers[fieldMeta.Parser]
@@ -215,8 +219,8 @@ func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([
 
 func (ep *ExcelParser) ReadCsvFromReader(reader io.Reader, sheetName string) ([][]string, error) {
 	csvReader := csv.NewReader(reader)
-	csvReader.LazyQuotes = true    // 允许宽松的引号规则
-	csvReader.FieldsPerRecord = -1 // 禁用字段数量验证
+	csvReader.LazyQuotes = true
+	csvReader.FieldsPerRecord = -1
 	rows, err := csvReader.ReadAll()
 	if err != nil {
 		return nil, err
