@@ -1,8 +1,10 @@
 package excel2struct
 
 type FieldMetadata struct {
-	StName   string
+	FIndex   int
+	FName    string
 	Excel    string
 	Parser   string
 	Required bool
+	Default  string
 }
