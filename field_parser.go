@@ -164,28 +164,6 @@ func FieldParserTime(field string) (interface{}, error) {
 	return time.Time{}, errors.New("field time format error")
 }
 
-func FieldParserTimeWithLayout(field string, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return "", nil
-	}
-	t, err := time.Parse(layout, field)
-	if err != nil {
-		return "", err
-	}
-	return t.Format(layout), nil
-}
-
-func FieldParserTimeWithLayoutLoc(field string, loc *time.Location, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return "", nil
-	}
-	t, err := time.ParseInLocation(layout, field, loc)
-	if err != nil {
-		return "", err
-	}
-	return t.Format(layout), nil
-}
-
 func FieldParserTimeUnixNano(field string) (interface{}, error) {
 	if len(field) == 0 {
 		return int64(0), nil
@@ -197,26 +175,4 @@ func FieldParserTimeUnixNano(field string) (interface{}, error) {
 		}
 	}
 	return int64(0), errors.New("field time UNIX Nano format error")
-}
-
-func FieldParserTimeWithLayoutUnixNano(field string, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return 0, nil
-	}
-	t, err := time.Parse(layout, field)
-	if err != nil {
-		return 0, err
-	}
-	return t.UnixNano(), nil
-}
-
-func FieldParserTimeWithLayoutLocUnixNano(field string, loc *time.Location, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return 0, nil
-	}
-	t, err := time.ParseInLocation(layout, field, loc)
-	if err != nil {
-		return 0, err
-	}
-	return t.UnixNano(), nil
 }

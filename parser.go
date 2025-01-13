@@ -17,18 +17,18 @@ type ExcelParser struct {
 	fileName     string
 	headerIndex  int
 	sheetName    string
-	length       int
 	fieldParsers map[string]FieldParser
+	workers      int
 }
 
-func NewExcelParser(fileName string, headerIndex int, sheetName string, length int, opts ...Option) (*ExcelParser, error) {
+func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) {
 	excelParser := &ExcelParser{
 		fileName:     fileName,
 		headerIndex:  headerIndex,
 		sheetName:    sheetName,
-		length:       length,
 		fieldParsers: DefaultFieldParserMap,
 	}
+
 	for _, opt := range opts {
 		if err := opt(excelParser); err != nil {
 			return nil, err
@@ -129,18 +129,23 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		return
 	}
 
-	results := reflect.MakeSlice(sliceType, 0, ep.length)
 	rows = rows[ep.headerIndex+1:]
 
-	for idx, row := range rows {
-		out := reflect.New(structType)
-		parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
-		if parsedErr != nil {
-			continue
+	if ep.workers == 0 {
+		results := reflect.MakeSlice(sliceType, 0, len(rows))
+		for idx, row := range rows {
+			out := reflect.New(structType)
+			parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
+			if parsedErr != nil {
+				continue
+			}
+			results = reflect.Append(results, out)
 		}
-		results = reflect.Append(results, out)
+		outputValue.Elem().Set(results)
+	} else {
+		ep.parseWithWorkers(ctx, structFieldMetaMap, titleMap, structType, sliceType, outputValue, rows)
 	}
-	outputValue.Elem().Set(results)
+
 	return
 }
 
@@ -196,6 +201,29 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 	return nil
 }
 
+func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]FieldMetadata) (map[int]string, error) {
+	fieldMap := make(map[int]string)
+	titleSet := make(map[string]struct{})
+
+	for idx, title := range row {
+		trimmedTitle := strings.TrimSpace(title)
+		fieldMap[idx] = trimmedTitle
+		titleSet[trimmedTitle] = struct{}{}
+	}
+
+	for field, fieldMeta := range structFieldMetaMap {
+		if !fieldMeta.Required {
+			continue
+		}
+
+		if _, found := titleSet[field]; !found {
+			return nil, fmt.Errorf("required field '%s' not found in title row", field)
+		}
+	}
+
+	return fieldMap, nil
+}
+
 func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([][]string, error) {
 	file, err := excelize.OpenReader(reader)
 	if err != nil {
@@ -224,27 +252,4 @@ func (ep *ExcelParser) ReadCsvFromReader(reader io.Reader, sheetName string) ([]
 		return nil, err
 	}
 	return rows, nil
-}
-
-func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]FieldMetadata) (map[int]string, error) {
-	fieldMap := make(map[int]string)
-	titleSet := make(map[string]struct{})
-
-	for idx, title := range row {
-		trimmedTitle := strings.TrimSpace(title)
-		fieldMap[idx] = trimmedTitle
-		titleSet[trimmedTitle] = struct{}{}
-	}
-
-	for field, fieldMeta := range structFieldMetaMap {
-		if !fieldMeta.Required {
-			continue
-		}
-
-		if _, found := titleSet[field]; !found {
-			return nil, fmt.Errorf("required field '%s' not found in title row", field)
-		}
-	}
-
-	return fieldMap, nil
 }
