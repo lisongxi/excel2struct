@@ -2,15 +2,10 @@ package excel2struct
 
 import (
 	"context"
-	"encoding/csv"
 	"errors"
 	"fmt"
-	"io"
-	"path/filepath"
 	"reflect"
 	"strings"
-
-	"github.com/xuri/excelize/v2"
 )
 
 type ExcelParser struct {
@@ -35,27 +30,6 @@ func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...
 		}
 	}
 	return excelParser, nil
-}
-
-func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}) (err error) {
-	var rowData [][]string
-	ext := filepath.Ext(ep.fileName)
-	switch ext {
-	case ".xlsx":
-		rowData, err = ep.ReadXlsxFromReader(reader, ep.sheetName)
-		if err != nil {
-			return err
-		}
-	case ".csv":
-		rowData, err = ep.ReadCsvFromReader(reader, ep.sheetName)
-		if err != nil {
-			return err
-		}
-	}
-	if len(rowData) == 0 {
-		return nil
-	}
-	return ep.Parse(ctx, rowData, output)
 }
 
 func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interface{}) (err error) {
@@ -222,34 +196,4 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 	}
 
 	return fieldMap, nil
-}
-
-func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([][]string, error) {
-	file, err := excelize.OpenReader(reader)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	if sheetName == "" {
-		sheetName = file.GetSheetName(1)
-	}
-
-	rows, err := file.GetRows(sheetName)
-	if err != nil {
-		return nil, err
-	}
-
-	return rows, nil
-}
-
-func (ep *ExcelParser) ReadCsvFromReader(reader io.Reader, sheetName string) ([][]string, error) {
-	csvReader := csv.NewReader(reader)
-	csvReader.LazyQuotes = true
-	csvReader.FieldsPerRecord = -1
-	rows, err := csvReader.ReadAll()
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
 }

@@ -69,18 +69,20 @@ func TestReaderWith(t *testing.T) {
 	}
 	defer file.Close()
 
-	opt := WithFieldParser("myheight", func(field string) (interface{}, error) {
-		if len(field) == 0 {
-			return 0.00, nil
-		}
-		f64, err := strconv.ParseFloat(field, 32)
-		if err != nil {
-			return int64(0), err
-		}
-		return 2 * math.Round(f64*100) / 100, nil
-	})
+	opts := []Option{
+		WithFieldParser("myheight", func(field string) (interface{}, error) {
+			if len(field) == 0 {
+				return 0.00, nil
+			}
+			f64, err := strconv.ParseFloat(field, 32)
+			if err != nil {
+				return int64(0), err
+			}
+			return 2 * math.Round(f64*100) / 100, nil
+		}),
+	}
 
-	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1", opt)
+	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
 	assert.Nil(t, err)
 
 	fileStruct := []*FileWithStruct{}
@@ -92,7 +94,7 @@ func TestReaderWith(t *testing.T) {
 func TestReaderWorkers(t *testing.T) {
 	ctx := context.Background()
 
-	file, err := os.Open("testdata/test1_big.xlsx")
+	file, err := os.Open("testdata/test1.xlsx")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -100,7 +102,7 @@ func TestReaderWorkers(t *testing.T) {
 	defer file.Close()
 
 	opt := WithWorkers(12)
-	excelParser, err := NewExcelParser("test1_big.xlsx", 0, "Sheet1", opt)
+	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1", opt)
 	assert.Nil(t, err)
 
 	fileStruct := []*FileStruct{}

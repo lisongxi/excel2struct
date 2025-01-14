@@ -18,7 +18,7 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 	// workers start
 	for i := 0; i < ep.workers; i++ {
 		wg.Add(1)
-		go func() {
+		SafeGo(ctx, func() {
 			defer wg.Done()
 			for index := range rowIndexChan {
 				out := reflect.New(structType)
@@ -31,7 +31,7 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 					value reflect.Value
 				}{index: index, value: out}
 			}
-		}()
+		})
 	}
 
 	// distribute tasks
@@ -58,4 +58,18 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 		}
 	}
 	outputValue.Elem().Set(results)
+}
+
+func SafeGo(ctx context.Context, fn func()) {
+	go func() {
+		defer func() {
+			// TODO catch error
+			// if err := recover(); err != nil {
+			// 	fmt.Println(ctx, "Recovered from panic: %v, error stack: %s", err, debug.Stack())
+			// }
+			_ = recover()
+		}()
+
+		fn()
+	}()
 }
