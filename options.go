@@ -1,9 +1,6 @@
 package excel2struct
 
-import (
-	"errors"
-	"strings"
-)
+import "runtime"
 
 type Option func(excelParser *ExcelParser) error
 
@@ -14,22 +11,12 @@ func WithFieldParser(tag string, parser FieldParser) Option {
 	}
 }
 
-func WithTimeLayoutParser(tag string, parser TimeLayoutParser) Option {
+func WithWorkers(num int) Option {
 	return func(excelParser *ExcelParser) error {
-		if !strings.HasPrefix(tag, "time") {
-			return errors.New("time field name must start with 'time'")
+		if num < 0 || num > runtime.NumCPU() {
+			num = runtime.NumCPU()
 		}
-		excelParser.timeLayoutParsers[tag] = parser
-		return nil
-	}
-}
-
-func WithTimeLocLayoutParser(tag string, parser TimeLocLayoutParser) Option {
-	return func(excelParser *ExcelParser) error {
-		if !strings.HasPrefix(tag, "time") {
-			return errors.New("time field name must start with 'time'")
-		}
-		excelParser.timeLocLayoutParsers[tag] = parser
+		excelParser.workers = num
 		return nil
 	}
 }

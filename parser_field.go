@@ -2,6 +2,7 @@ package excel2struct
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -9,27 +10,17 @@ import (
 
 var (
 	DefaultFieldParserMap = map[string]FieldParser{
-		"string":  FieldParserString,
-		"int":     FieldParserInt,
-		"int8":    FieldParserInt8,
-		"int16":   FieldParserInt16,
-		"int32":   FieldParserInt32,
-		"int64":   FieldParserInt64,
-		"float32": FieldParserFloat32,
-		"float64": FieldParserFloat64,
-		"bool":    FieldParserBool,
-		"Time":    FieldParserTime,
-		"timeUN":  FieldParserTimeUnixNano,
-	}
-
-	TimeLayoutParserMap = map[string]TimeLayoutParser{
-		"time_lay":    FieldParserTimeWithLayout,
-		"time_lay_un": FieldParserTimeWithLayoutUnixNano,
-	}
-
-	TimeLocLayoutParserMap = map[string]TimeLocLayoutParser{
-		"time_loc_lay":    FieldParserTimeWithLayoutLoc,
-		"time_loc_lay_un": FieldParserTimeWithLayoutLocUnixNano,
+		"string":   FieldParserString,
+		"int":      FieldParserInt,
+		"int8":     FieldParserInt8,
+		"int16":    FieldParserInt16,
+		"int32":    FieldParserInt32,
+		"int64":    FieldParserInt64,
+		"float32":  FieldParserFloat32,
+		"float64":  FieldParserFloat64,
+		"bool":     FieldParserBool,
+		"Time":     FieldParserTime,
+		"unixNano": FieldParserTimeUnixNano,
 	}
 )
 
@@ -53,10 +44,6 @@ var timeLayouts = []string{
 }
 
 type FieldParser func(field string) (interface{}, error)
-
-type TimeLayoutParser func(field, layout string) (interface{}, error)
-
-type TimeLocLayoutParser func(field string, loc *time.Location, layout string) (interface{}, error)
 
 func FieldParserString(field string) (interface{}, error) {
 	return field, nil
@@ -143,14 +130,18 @@ func FieldParserFloat32(field string) (interface{}, error) {
 	if err != nil {
 		return float32(0.00), err
 	}
-	return float32(f64), nil
+	return float32(math.Round(f64*100) / 100), nil
 }
 
 func FieldParserFloat64(field string) (interface{}, error) {
 	if len(field) == 0 {
 		return 0.00, nil
 	}
-	return strconv.ParseFloat(field, 32)
+	f64, err := strconv.ParseFloat(field, 32)
+	if err != nil {
+		return 0.00, err
+	}
+	return math.Round(f64*100) / 100, nil
 }
 
 func FieldParserBool(field string) (interface{}, error) {
@@ -173,28 +164,6 @@ func FieldParserTime(field string) (interface{}, error) {
 	return time.Time{}, errors.New("field time format error")
 }
 
-func FieldParserTimeWithLayout(field string, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return "", nil
-	}
-	t, err := time.Parse(layout, field)
-	if err != nil {
-		return "", err
-	}
-	return t.Format(layout), nil
-}
-
-func FieldParserTimeWithLayoutLoc(field string, loc *time.Location, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return "", nil
-	}
-	t, err := time.ParseInLocation(layout, field, loc)
-	if err != nil {
-		return "", err
-	}
-	return t.Format(layout), nil
-}
-
 func FieldParserTimeUnixNano(field string) (interface{}, error) {
 	if len(field) == 0 {
 		return int64(0), nil
@@ -206,26 +175,4 @@ func FieldParserTimeUnixNano(field string) (interface{}, error) {
 		}
 	}
 	return int64(0), errors.New("field time UNIX Nano format error")
-}
-
-func FieldParserTimeWithLayoutUnixNano(field string, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return 0, nil
-	}
-	t, err := time.Parse(layout, field)
-	if err != nil {
-		return 0, err
-	}
-	return t.UnixNano(), nil
-}
-
-func FieldParserTimeWithLayoutLocUnixNano(field string, loc *time.Location, layout string) (interface{}, error) {
-	if len(field) == 0 {
-		return 0, nil
-	}
-	t, err := time.ParseInLocation(layout, field, loc)
-	if err != nil {
-		return 0, err
-	}
-	return t.UnixNano(), nil
 }

@@ -2,64 +2,34 @@ package excel2struct
 
 import (
 	"context"
-	"encoding/csv"
 	"errors"
 	"fmt"
-	"io"
-	"path/filepath"
 	"reflect"
 	"strings"
-
-	"github.com/xuri/excelize/v2"
 )
 
 type ExcelParser struct {
-	fileName             string
-	headerIndex          int
-	sheetName            string
-	length               int
-	fieldParsers         map[string]FieldParser
-	timeLayoutParsers    map[string]TimeLayoutParser
-	timeLocLayoutParsers map[string]TimeLocLayoutParser
+	fileName     string
+	headerIndex  int
+	sheetName    string
+	fieldParsers map[string]FieldParser
+	workers      int
 }
 
-func NewExcelParser(fileName string, headerIndex int, sheetName string, length int, opts ...Option) (*ExcelParser, error) {
+func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) {
 	excelParser := &ExcelParser{
-		fileName:             fileName,
-		headerIndex:          headerIndex,
-		sheetName:            sheetName,
-		length:               length,
-		fieldParsers:         DefaultFieldParserMap,
-		timeLayoutParsers:    TimeLayoutParserMap,
-		timeLocLayoutParsers: TimeLocLayoutParserMap,
+		fileName:     fileName,
+		headerIndex:  headerIndex,
+		sheetName:    sheetName,
+		fieldParsers: DefaultFieldParserMap,
 	}
+
 	for _, opt := range opts {
 		if err := opt(excelParser); err != nil {
 			return nil, err
 		}
 	}
 	return excelParser, nil
-}
-
-func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}) (err error) {
-	var rowData [][]string
-	ext := filepath.Ext(ep.fileName)
-	switch ext {
-	case ".xlsx":
-		rowData, err = ep.ReadXlsxFromReader(reader, ep.sheetName)
-		if err != nil {
-			return err
-		}
-	case ".csv":
-		rowData, err = ep.ReadCsvFromReader(reader, ep.sheetName)
-		if err != nil {
-			return err
-		}
-	}
-	if len(rowData) == 0 {
-		return nil
-	}
-	return ep.Parse(ctx, rowData, output)
 }
 
 func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interface{}) (err error) {
@@ -133,16 +103,23 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		return
 	}
 
-	results := reflect.MakeSlice(sliceType, 0, ep.length)
-	for idx, row := range rows[ep.headerIndex+1:] {
-		out := reflect.New(structType)
-		parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
-		if parsedErr != nil {
-			continue
+	rows = rows[ep.headerIndex+1:]
+
+	if ep.workers == 0 {
+		results := reflect.MakeSlice(sliceType, 0, len(rows))
+		for idx, row := range rows {
+			out := reflect.New(structType)
+			parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
+			if parsedErr != nil {
+				continue
+			}
+			results = reflect.Append(results, out)
 		}
-		results = reflect.Append(results, out)
+		outputValue.Elem().Set(results)
+	} else {
+		ep.parseWithWorkers(ctx, structFieldMetaMap, titleMap, structType, sliceType, outputValue, rows)
 	}
-	outputValue.Elem().Set(results)
+
 	return
 }
 
@@ -196,36 +173,6 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 	}
 
 	return nil
-}
-
-func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([][]string, error) {
-	file, err := excelize.OpenReader(reader)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	if sheetName == "" {
-		sheetName = file.GetSheetName(1)
-	}
-
-	rows, err := file.GetRows(sheetName)
-	if err != nil {
-		return nil, err
-	}
-
-	return rows, nil
-}
-
-func (ep *ExcelParser) ReadCsvFromReader(reader io.Reader, sheetName string) ([][]string, error) {
-	csvReader := csv.NewReader(reader)
-	csvReader.LazyQuotes = true
-	csvReader.FieldsPerRecord = -1
-	rows, err := csvReader.ReadAll()
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
 }
 
 func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]FieldMetadata) (map[int]string, error) {
