@@ -16,16 +16,16 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 	case ".xlsx":
 		rowData, err = ep.ReadXlsxFromReader(reader, ep.sheetName)
 		if err != nil {
-			return err
+			return
 		}
 	case ".csv":
 		rowData, err = ep.ReadCsvFromReader(reader, ep.sheetName)
 		if err != nil {
-			return err
+			return
 		}
 	}
 	if len(rowData) == 0 {
-		return nil
+		return
 	}
 	err = ep.Parse(ctx, rowData, output)
 	return

@@ -13,6 +13,8 @@ type ExcelParser struct {
 	headerIndex  int
 	sheetName    string
 	fieldParsers map[string]FieldParser
+	rowErrs      *[]ErrorInfo
+	errChan      chan ErrorInfo
 	workers      int
 }
 
@@ -22,6 +24,8 @@ func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...
 		headerIndex:  headerIndex,
 		sheetName:    sheetName,
 		fieldParsers: DefaultFieldParserMap,
+		rowErrs:      &[]ErrorInfo{},
+		errChan:      make(chan ErrorInfo, 10),
 	}
 
 	for _, opt := range opts {
@@ -33,6 +37,8 @@ func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...
 }
 
 func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interface{}) (err error) {
+	defer close(ep.errChan)
+
 	outputValue := reflect.ValueOf(output)
 	outputType := reflect.TypeOf(output)
 	for outputType.Kind() != reflect.Ptr || outputType.Elem().Kind() != reflect.Slice {
@@ -51,7 +57,6 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		return fmt.Errorf("the pointer of the slice element must point to a struct")
 	}
 
-	structIdxFieldMetaMap := make(map[int]FieldMetadata)
 	structFieldMetaMap := make(map[string]FieldMetadata)
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
@@ -75,8 +80,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 				Required: required,
 				Default:  defaultVal,
 			}
-			structIdxFieldMetaMap[i] = fieldMetadata
-			structFieldMetaMap[excelTags[0]] = fieldMetadata
+			structFieldMetaMap[strings.TrimSpace(excelTags[0])] = fieldMetadata
 			continue
 		}
 		fieldMetadata := FieldMetadata{
@@ -87,15 +91,14 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 			Required: required,
 			Default:  defaultVal,
 		}
-		structIdxFieldMetaMap[i] = fieldMetadata
-		structFieldMetaMap[excelTags[0]] = fieldMetadata
+		structFieldMetaMap[strings.TrimSpace(excelTags[0])] = fieldMetadata
 	}
 
 	if ep.headerIndex >= len(rows) {
 		return errors.New("error excel header index")
 	}
 	if ep.headerIndex == len(rows)-1 {
-		return nil
+		return
 	}
 
 	titleMap, err := ep.parseTitle(rows[ep.headerIndex], structFieldMetaMap)
@@ -104,14 +107,15 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 	}
 
 	rows = rows[ep.headerIndex+1:]
+	ep.AppendErrors(ctx)
 
 	if ep.workers == 0 {
 		results := reflect.MakeSlice(sliceType, 0, len(rows))
 		for idx, row := range rows {
 			out := reflect.New(structType)
-			parsedErr := ep.parseRowToStruct(ctx, idx, structFieldMetaMap, row, titleMap, out)
+			parsedErr := ep.parseRowToStruct(ctx, idx+ep.headerIndex+2, structFieldMetaMap, row, titleMap, out)
 			if parsedErr != nil {
-				continue
+				return parsedErr
 			}
 			results = reflect.Append(results, out)
 		}
@@ -123,7 +127,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 	return
 }
 
-func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, structFieldMetaMap map[string]FieldMetadata, row []string, titleMap map[int]string, out reflect.Value) (err error) {
+func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, structFieldMetaMap map[string]FieldMetadata, row []string, titleMap map[string]int, out reflect.Value) (err error) {
 	if out.Kind() != reflect.Ptr {
 		return fmt.Errorf("the slice element must be a pointer")
 	}
@@ -133,28 +137,35 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 
 	outElem := out.Elem()
 
-	for colIdx, field := range row {
-		field = strings.TrimSpace(field)
-		title, ok := titleMap[colIdx]
+	for excelTag, fieldMeta := range structFieldMetaMap {
+		tIdx, ok := titleMap[excelTag]
 		if !ok {
-			continue
+			return fmt.Errorf(ERROR_TYPE[ERROR_FIELD], excelTag)
 		}
 
-		fieldMeta, ok := structFieldMetaMap[title]
-		if !ok {
-			return fmt.Errorf("row Index:%d, column:%s, no struct field matching found", rowIndex, title)
+		var field string
+		if tIdx < len(row) {
+			field = row[tIdx]
+		}
+		if field == "" && fieldMeta.Required {
+			return fmt.Errorf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex)
 		}
 
 		fieldParser, registered := ep.fieldParsers[fieldMeta.Parser]
 		if !registered {
-			return fmt.Errorf("field parser [%s] not registered", fieldMeta.Parser)
+			return fmt.Errorf(ERROR_TYPE[ERROR_REGISTED], fieldMeta.Parser)
 		}
 
 		value, err := fieldParser(field)
 		if err != nil {
 			if fieldMeta.Required {
-				return fmt.Errorf("failed to parse required field %s (row %d, col %d): %v", fieldMeta.FName, rowIndex, colIdx, err)
+				return fmt.Errorf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err)
 			}
+			ep.errChan <- ErrorInfo{
+				Row:       rowIndex,
+				Column:    excelTag,
+				ErrorCode: ERROR_PARSE,
+				ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err)}
 			continue
 		}
 
@@ -175,14 +186,12 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 	return nil
 }
 
-func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]FieldMetadata) (map[int]string, error) {
-	fieldMap := make(map[int]string)
-	titleSet := make(map[string]struct{})
+func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]FieldMetadata) (map[string]int, error) {
+	titleMap := make(map[string]int)
 
 	for idx, title := range row {
 		trimmedTitle := strings.TrimSpace(title)
-		fieldMap[idx] = trimmedTitle
-		titleSet[trimmedTitle] = struct{}{}
+		titleMap[trimmedTitle] = idx
 	}
 
 	for field, fieldMeta := range structFieldMetaMap {
@@ -190,10 +199,18 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 			continue
 		}
 
-		if _, found := titleSet[field]; !found {
+		if _, found := titleMap[field]; !found {
 			return nil, fmt.Errorf("required field '%s' not found in title row", field)
 		}
 	}
 
-	return fieldMap, nil
+	return titleMap, nil
+}
+
+func (ep *ExcelParser) AppendErrors(ctx context.Context) {
+	SafeGo(ctx, func() {
+		for err := range ep.errChan {
+			*ep.rowErrs = append(*ep.rowErrs, err)
+		}
+	})
 }
