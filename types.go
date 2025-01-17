@@ -5,16 +5,20 @@ const (
 	ERROR_REQUIRED = 1001
 	ERROR_PARSE    = 1002
 	ERROR_REGISTED = 1003
+	ERROR_FIELD    = 1004
 )
 
 var ERROR_TYPE = map[int]string{
 	ERROR_UNKNOWN:  "unknown error: %s",
-	ERROR_REQUIRED: "field [%s] required, but not found: Row index [%d], Column [%s]",
-	ERROR_PARSE:    "unable to parse field [%s]: Row index [%d], Column [%s]",
-	ERROR_REGISTED: "parsing func [%s] is not registered: Type tag [%s]",
+	ERROR_REQUIRED: "field [%s] is required, but excel data is null: Row [%d]",
+	ERROR_PARSE:    "unable to parse field [%s], Required [%t], Error [%v]",
+	ERROR_REGISTED: "parsing func is not registered: Parser tag [%s]",
+	ERROR_FIELD:    "no excel title matching found: Struct Field [%s]",
 }
 
 type ErrorInfo struct {
+	Row       int
+	Column    string
 	ErrorCode int
 	ErrorMsg  string
 }

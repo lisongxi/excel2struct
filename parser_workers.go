@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap map[string]FieldMetadata, titleMap map[int]string, structType, sliceType reflect.Type, outputValue reflect.Value, rows [][]string) {
+func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap map[string]FieldMetadata, titleMap map[string]int, structType, sliceType reflect.Type, outputValue reflect.Value, rows [][]string) {
 	var wg sync.WaitGroup
 
 	rowIndexChan := make(chan int, len(rows))
