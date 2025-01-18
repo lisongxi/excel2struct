@@ -140,7 +140,7 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 	for excelTag, fieldMeta := range structFieldMetaMap {
 		tIdx, ok := titleMap[excelTag]
 		if !ok {
-			return fmt.Errorf(ERROR_TYPE[ERROR_FIELD], excelTag)
+			return fmt.Errorf(ERROR_TYPE[ERROR_FIELD_MATCH], excelTag)
 		}
 
 		var field string
@@ -153,7 +153,7 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 
 		fieldParser, registered := ep.fieldParsers[fieldMeta.Parser]
 		if !registered {
-			return fmt.Errorf(ERROR_TYPE[ERROR_REGISTED], fieldMeta.Parser)
+			return fmt.Errorf(ERROR_TYPE[ERROR_NOT_REGISTED], fieldMeta.Parser)
 		}
 
 		value, err := fieldParser(field)

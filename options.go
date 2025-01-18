@@ -20,3 +20,12 @@ func WithWorkers(num int) Option {
 		return nil
 	}
 }
+
+type WOption func(structConverter *StructConverter) error
+
+func WithFieldConverter(tag string, converter FieldConverter) WOption {
+	return func(structConverter *StructConverter) error {
+		structConverter.fieldConverters[tag] = converter
+		return nil
+	}
+}

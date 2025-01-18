@@ -22,7 +22,7 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 			defer wg.Done()
 			for index := range rowIndexChan {
 				out := reflect.New(structType)
-				parsedErr := ep.parseRowToStruct(ctx, index, structFieldMetaMap, rows[index], titleMap, out)
+				parsedErr := ep.parseRowToStruct(ctx, index+ep.headerIndex+2, structFieldMetaMap, rows[index], titleMap, out)
 				if parsedErr != nil {
 					continue
 				}
