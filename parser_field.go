@@ -2,10 +2,11 @@ package excel2struct
 
 import (
 	"errors"
-	"math"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 var (
@@ -126,22 +127,22 @@ func FieldParserFloat32(field string) (interface{}, error) {
 	if len(field) == 0 {
 		return float32(0.00), nil
 	}
-	f64, err := strconv.ParseFloat(field, 32)
+	d, err := decimal.NewFromString(field)
 	if err != nil {
 		return float32(0.00), err
 	}
-	return float32(math.Round(f64*100) / 100), nil
+	return float32(d.Round(2).InexactFloat64()), nil
 }
 
 func FieldParserFloat64(field string) (interface{}, error) {
 	if len(field) == 0 {
 		return 0.00, nil
 	}
-	f64, err := strconv.ParseFloat(field, 32)
+	d, err := decimal.NewFromString(field)
 	if err != nil {
 		return 0.00, err
 	}
-	return math.Round(f64*100) / 100, nil
+	return d.Round(2).InexactFloat64(), nil
 }
 
 func FieldParserBool(field string) (interface{}, error) {
