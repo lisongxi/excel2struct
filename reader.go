@@ -3,13 +3,14 @@ package excel2struct
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"io"
 	"path/filepath"
 
 	"github.com/xuri/excelize/v2"
 )
 
-func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}) (err error) {
+func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}, skip bool) (err error) {
 	var rowData [][]string
 	ext := filepath.Ext(ep.fileName)
 	switch ext {
@@ -23,11 +24,13 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 		if err != nil {
 			return
 		}
+	default:
+		return errors.New("unknown file type, please check filename suffixes, such as '.xlsx'")
 	}
 	if len(rowData) == 0 {
 		return
 	}
-	err = ep.Parse(ctx, rowData, output)
+	err = ep.Parse(ctx, rowData, output, skip)
 	return
 }
 
