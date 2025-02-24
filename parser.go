@@ -157,7 +157,9 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 					Row:       rowIndex,
 					Column:    excelTag,
 					ErrorCode: ERROR_REQUIRED,
-					ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex)}
+					ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex),
+				}
+				return nil
 			}
 			continue
 		}
@@ -176,7 +178,11 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 				Row:       rowIndex,
 				Column:    excelTag,
 				ErrorCode: ERROR_PARSE,
-				ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err)}
+				ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err),
+			}
+			if fieldMeta.Required {
+				return nil
+			}
 			continue
 		}
 
