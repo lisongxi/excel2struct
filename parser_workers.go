@@ -2,11 +2,12 @@ package excel2struct
 
 import (
 	"context"
+	"github.com/lisongxi/goutils"
 	"reflect"
 	"sync"
 )
 
-func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap map[string]FieldMetadata, titleMap map[string]int, structType, sliceType reflect.Type, outputValue reflect.Value, rows [][]string) {
+func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap map[string]FieldMetadata, titleMap map[string]int, structType, sliceType reflect.Type, outputValue reflect.Value, rows [][]string, skip bool) {
 	var wg sync.WaitGroup
 
 	rowIndexChan := make(chan int, len(rows))
@@ -18,11 +19,11 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 	// workers start
 	for i := 0; i < ep.workers; i++ {
 		wg.Add(1)
-		SafeGo(ctx, func() {
+		goutils.SafeGo(ctx, func() {
 			defer wg.Done()
 			for index := range rowIndexChan {
 				out := reflect.New(structType)
-				parsedErr := ep.parseRowToStruct(ctx, index+ep.headerIndex+2, structFieldMetaMap, rows[index], titleMap, out)
+				parsedErr := ep.parseRowToStruct(ctx, index+ep.headerIndex+2, structFieldMetaMap, rows[index], titleMap, out, skip)
 				if parsedErr != nil {
 					continue
 				}
@@ -58,18 +59,4 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 		}
 	}
 	outputValue.Elem().Set(results)
-}
-
-func SafeGo(ctx context.Context, fn func()) {
-	go func() {
-		defer func() {
-			// TODO catch error
-			// if err := recover(); err != nil {
-			// 	fmt.Println(ctx, "Recovered from panic: %v, error stack: %s", err, debug.Stack())
-			// }
-			_ = recover()
-		}()
-
-		fn()
-	}()
 }

@@ -55,7 +55,7 @@ func TestReader(t *testing.T) {
 
 	fileStruct := []*FileStruct{}
 
-	err = excelParser.Reader(ctx, file, &fileStruct)
+	err = excelParser.Reader(ctx, file, &fileStruct, false)
 	assert.Nil(t, err)
 }
 
@@ -87,7 +87,7 @@ func TestReaderWith(t *testing.T) {
 
 	fileStruct := []*FileWithStruct{}
 
-	err = excelParser.Reader(ctx, file, &fileStruct)
+	err = excelParser.Reader(ctx, file, &fileStruct, false)
 	assert.Nil(t, err)
 }
 
@@ -107,6 +107,6 @@ func TestReaderWorkers(t *testing.T) {
 
 	fileStruct := []*FileStruct{}
 
-	err = excelParser.Reader(ctx, file, &fileStruct)
+	err = excelParser.Reader(ctx, file, &fileStruct, false)
 	assert.Nil(t, err)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/lisongxi/goutils"
 	"reflect"
 	"strings"
 )
@@ -36,7 +37,7 @@ func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...
 	return excelParser, nil
 }
 
-func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interface{}) (err error) {
+func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interface{}, skip bool) (err error) {
 	defer close(ep.errChan)
 
 	outputValue := reflect.ValueOf(output)
@@ -113,7 +114,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		results := reflect.MakeSlice(sliceType, 0, len(rows))
 		for idx, row := range rows {
 			out := reflect.New(structType)
-			parsedErr := ep.parseRowToStruct(ctx, idx+ep.headerIndex+2, structFieldMetaMap, row, titleMap, out)
+			parsedErr := ep.parseRowToStruct(ctx, idx+ep.headerIndex+2, structFieldMetaMap, row, titleMap, out, skip)
 			if parsedErr != nil {
 				return parsedErr
 			}
@@ -121,13 +122,13 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		}
 		outputValue.Elem().Set(results)
 	} else {
-		ep.parseWithWorkers(ctx, structFieldMetaMap, titleMap, structType, sliceType, outputValue, rows)
+		ep.parseWithWorkers(ctx, structFieldMetaMap, titleMap, structType, sliceType, outputValue, rows, skip)
 	}
 
 	return
 }
 
-func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, structFieldMetaMap map[string]FieldMetadata, row []string, titleMap map[string]int, out reflect.Value) (err error) {
+func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, structFieldMetaMap map[string]FieldMetadata, row []string, titleMap map[string]int, out reflect.Value, skip bool) (err error) {
 	if out.Kind() != reflect.Ptr {
 		return fmt.Errorf("the slice element must be a pointer")
 	}
@@ -147,8 +148,20 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 		if tIdx < len(row) {
 			field = row[tIdx]
 		}
-		if field == "" && fieldMeta.Required {
-			return fmt.Errorf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex)
+		if field == "" {
+			if !skip && fieldMeta.Required {
+				return fmt.Errorf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex)
+			}
+			if fieldMeta.Required {
+				ep.errChan <- ErrorInfo{
+					Row:       rowIndex,
+					Column:    excelTag,
+					ErrorCode: ERROR_REQUIRED,
+					ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex),
+				}
+				return nil
+			}
+			continue
 		}
 
 		fieldParser, registered := ep.fieldParsers[fieldMeta.Parser]
@@ -158,14 +171,18 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 
 		value, err := fieldParser(field)
 		if err != nil {
-			if fieldMeta.Required {
+			if !skip && fieldMeta.Required {
 				return fmt.Errorf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err)
 			}
 			ep.errChan <- ErrorInfo{
 				Row:       rowIndex,
 				Column:    excelTag,
 				ErrorCode: ERROR_PARSE,
-				ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err)}
+				ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err),
+			}
+			if fieldMeta.Required {
+				return nil
+			}
 			continue
 		}
 
@@ -208,7 +225,7 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 }
 
 func (ep *ExcelParser) AppendErrors(ctx context.Context) {
-	SafeGo(ctx, func() {
+	goutils.SafeGo(ctx, func() {
 		for err := range ep.errChan {
 			*ep.rowErrs = append(*ep.rowErrs, err)
 		}
