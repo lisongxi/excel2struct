@@ -155,9 +155,6 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 		}
 
 		if fieldMeta.EIndex > 0 && tIdx != fieldMeta.EIndex {
-			if fieldMeta.EIndex >= len(row) {
-				return fmt.Errorf(ERROR_TYPE[ERROR_EINDEX_EXCEED], fieldMeta.FName)
-			}
 			tIdx = fieldMeta.EIndex - 1
 		}
 
@@ -235,12 +232,16 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 	}
 
 	for field, fieldMeta := range structFieldMetaMap {
+		if fieldMeta.EIndex > len(row) {
+			return nil, fmt.Errorf(ERROR_TYPE[ERROR_EINDEX_EXCEED], fieldMeta.FName)
+		}
+
 		if !fieldMeta.Required {
 			continue
 		}
 
 		if _, found := titleMap[field]; !found {
-			return nil, fmt.Errorf("required field '%s' not found in title row", field)
+			return nil, fmt.Errorf("required field '%s' not found in excel title row", field)
 		}
 	}
 
