@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/lisongxi/goutils"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -66,6 +67,13 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		if len(excelTags) == 0 || excelTags[0] == "-" || strings.TrimSpace(excelTags[0]) == "" {
 			continue
 		}
+
+		eIndexTag := field.Tag.Get("eIndex")
+		var eIndex int
+		if eIndexTag != "" && eIndexTag != "-" {
+			eIndex, _ = strconv.Atoi(strings.TrimSpace(eIndexTag))
+		}
+
 		required := strings.Contains(excelTag, "required")
 		defaultVal := field.Tag.Get("default")
 
@@ -77,6 +85,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 				FIndex:   i,
 				FName:    field.Name,
 				Excel:    strings.TrimSpace(excelTags[0]),
+				EIndex:   eIndex,
 				Parser:   parser,
 				Required: required,
 				Default:  defaultVal,
@@ -88,6 +97,7 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 			FIndex:   i,
 			FName:    field.Name,
 			Excel:    strings.TrimSpace(excelTags[0]),
+			EIndex:   eIndex,
 			Parser:   strings.TrimSpace(parserTags[0]),
 			Required: required,
 			Default:  defaultVal,
@@ -144,9 +154,20 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 			return fmt.Errorf(ERROR_TYPE[ERROR_FIELD_MATCH], excelTag)
 		}
 
+		if fieldMeta.EIndex > 0 && tIdx != fieldMeta.EIndex {
+			if fieldMeta.EIndex >= len(row) {
+				return fmt.Errorf(ERROR_TYPE[ERROR_EINDEX_EXCEED], fieldMeta.FName)
+			}
+			tIdx = fieldMeta.EIndex - 1
+		}
+
 		var field string
 		if tIdx < len(row) {
 			field = row[tIdx]
+		}
+		// set default value
+		if field == "" && fieldMeta.Default != "" {
+			field = fieldMeta.Default
 		}
 		if field == "" {
 			if !skip && fieldMeta.Required {
@@ -208,7 +229,9 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 
 	for idx, title := range row {
 		trimmedTitle := strings.TrimSpace(title)
-		titleMap[trimmedTitle] = idx
+		if _, ok := titleMap[trimmedTitle]; !ok {
+			titleMap[trimmedTitle] = idx
+		}
 	}
 
 	for field, fieldMeta := range structFieldMetaMap {

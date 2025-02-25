@@ -29,7 +29,7 @@ type FileStruct struct {
 type FileWithStruct struct {
 	ID         int64     `gorm:"id"`
 	Name       string    `gorm:"name" excel:"name,required"`
-	Age        int8      `gorm:"age" excel:"age,required"`
+	Age        int8      `gorm:"age" excel:"age,required" default:"18"`
 	Address    string    `gorm:"address" excel:"address"`
 	Birthday   time.Time `gorm:"birthday" excel:"birthday,required"`
 	Height     float64   `gorm:"height" excel:"height,required" parser:"myheight"`
@@ -53,10 +53,14 @@ func TestReader(t *testing.T) {
 	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1")
 	assert.Nil(t, err)
 
-	fileStruct := []*FileStruct{}
+	var fileStruct []*FileStruct
 
-	err = excelParser.Reader(ctx, file, &fileStruct, false)
+	err = excelParser.Reader(ctx, file, &fileStruct, true)
 	assert.Nil(t, err)
+
+	for _, fs := range fileStruct {
+		fmt.Printf("%+v\n", fs)
+	}
 }
 
 func TestReaderWith(t *testing.T) {

@@ -61,7 +61,7 @@ func main() {
 
 	fileStruct := []*FileStruct{}
 
-	err = excelParser.Reader(ctx, file, &fileStruct)
+	err = excelParser.Reader(ctx, file, &fileStruct, true)
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -90,8 +90,12 @@ func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...
 ```
 
 ```go
-func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}) (err error) 
+func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}, skip bool) (err error) 
 // ctx：上下文
-// reader: 实现了 io.Reader 接口的类型，例如打开的文件;
+// reader: 实现了`io.Reader`接口的类型，例如打开的文件;
 // output：接收excel数据的结构体指针切片，注意切片元素类型一定要是指针类型，指向结构体;
+// skip: 针对`required`字段。当skip=false时，表示不允许跳过，当required字段为空且无默认值或者解析过程发生错误，则直接返回错误，不再继续往下解析；
+//       当skip=true时，表示允许跳过，当required字段为空且无默认值或者解析过程发生错误，则记录错误，并跳过这一行，继续解析下一行；
 ```
+
+### 3. 高级用法
