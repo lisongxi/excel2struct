@@ -7,15 +7,25 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/extrame/xls"
 	"github.com/xuri/excelize/v2"
 )
 
-func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output interface{}, skip bool) (err error) {
+func (ep *ExcelParser) Reader(ctx context.Context, reader io.ReadSeeker, output interface{}, skip bool, args ...interface{}) (err error) {
 	var rowData [][]string
 	ext := filepath.Ext(ep.fileName)
 	switch ext {
 	case ".xlsx":
 		rowData, err = ep.ReadXlsxFromReader(reader, ep.sheetName)
+		if err != nil {
+			return
+		}
+	case ".xls":
+		e := "utf-8"
+		if len(args) > 0 {
+			e = args[0].(string)
+		}
+		rowData, err = ep.ReadXlsFromReader(reader, ep.sheetName, e)
 		if err != nil {
 			return
 		}
@@ -25,7 +35,10 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 			return
 		}
 	default:
-		return errors.New("unknown file type, please check filename suffixes, such as '.xlsx'")
+		rowData, err = ep.ReadXlsxFromReader(reader, ep.sheetName)
+		if err != nil {
+			return errors.New("unknown file type")
+		}
 	}
 	if len(rowData) == 0 {
 		return
@@ -34,7 +47,7 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 	return
 }
 
-func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([][]string, error) {
+func (ep *ExcelParser) ReadXlsxFromReader(reader io.ReadSeeker, sheetName string) ([][]string, error) {
 	file, err := excelize.OpenReader(reader)
 	if err != nil {
 		return nil, err
@@ -42,7 +55,7 @@ func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([
 	defer file.Close()
 
 	if sheetName == "" {
-		sheetName = file.GetSheetName(1)
+		sheetName = file.GetSheetName(0)
 	}
 
 	rows, err := file.GetRows(sheetName)
@@ -51,6 +64,39 @@ func (ep *ExcelParser) ReadXlsxFromReader(reader io.Reader, sheetName string) ([
 	}
 
 	return rows, nil
+}
+
+func (ep *ExcelParser) ReadXlsFromReader(reader io.ReadSeeker, sheetName string, e string) ([][]string, error) {
+	file, err := xls.OpenReader(reader, e)
+	if err != nil {
+		return nil, err
+	}
+
+	sheet := &xls.WorkSheet{}
+	if sheetName == "" {
+		sheet = file.GetSheet(0)
+	} else {
+		for sheetIndex := 0; sheetIndex < file.NumSheets(); sheetIndex++ {
+			if w := file.GetSheet(sheetIndex); w.Name == sheetName {
+				sheet = w
+			}
+		}
+	}
+	if sheet == nil {
+		return nil, nil
+	}
+	fileData := make([][]string, 0)
+	for i := 0; i < int(sheet.MaxRow); i++ {
+		row := sheet.Row(i)
+		rowData := make([]string, 0, row.LastCol())
+		for col := 0; col < row.LastCol(); col++ {
+			cell := row.Col(col)
+			rowData = append(rowData, cell)
+		}
+		fileData = append(fileData, rowData)
+	}
+
+	return fileData, nil
 }
 
 func (ep *ExcelParser) ReadCsvFromReader(reader io.Reader, sheetName string) ([][]string, error) {

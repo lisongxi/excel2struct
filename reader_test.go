@@ -50,7 +50,7 @@ func TestReader(t *testing.T) {
 	}
 	defer file.Close()
 
-	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1")
+	excelParser, err := NewExcelParser("test1.xlsx", 0, "")
 	assert.Nil(t, err)
 
 	var fileStruct []*FileStruct
@@ -66,7 +66,7 @@ func TestReader(t *testing.T) {
 func TestReaderWith(t *testing.T) {
 	ctx := context.Background()
 
-	file, err := os.Open("testdata/test1.xlsx")
+	file, err := os.Open("testdata/vc1-coop-ContraCogsInvoices (1).xls")
 	if err != nil {
 		fmt.Println(err)
 		return

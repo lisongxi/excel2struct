@@ -84,7 +84,7 @@ func main() {
 ### 2. 参数解释
 ```go
 func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) 
-// fileName: 文件名，必填，并且要带文件后缀，例如`.xlsx`，当前版本仅支持xlsx和csv文件;
+// fileName: 文件名，必填，并且要带文件后缀，例如`.xlsx`，当前版本仅支持xlsx、xls和csv文件，默认xlsx；
 // headerIndex：标题行所在行数据的下标索引，必填，下标从0开始，并且headerIndex以前的数据行会被忽略;
 // sheetName：sheet名称，如果传入空字符串，则默认解析第一个sheet;
 ```
@@ -98,4 +98,9 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 //       当skip=true时，表示允许跳过，当required字段为空且无默认值或者解析过程发生错误，则记录错误，并跳过这一行，继续解析下一行；
 ```
 
-### 3. 高级用法
+### 3. 标签解释
+
+### 4. 高级用法
+#### 4.1 自定义字段解析函数
+#### 
+#### 4.3 多线程解析
