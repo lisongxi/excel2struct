@@ -243,6 +243,43 @@ excelParser, err := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
 // 所以当设置的goroutine数量超过CPU核心数时，数量再大也无意义；
 ```
 
+## 导出Excel文件
+当你看完以上的信息，以下的导出代码你很容易就能看懂了
+```go
+type Data struct {
+	ID    int       `excel:"ID"`
+	Name  string    `excel:"名称"`
+	Value float64   `excel:"数值" convert:"mytag"`
+	Date  time.Time `excel:"日期"`
+}
+
+func main() {
+	ctx := context.Background()
+
+	data := []Data{
+		{ID: 1, Name: "Alice", Value: 123.45, Date: time.Now()},
+		{ID: 2, Name: "Bob", Value: 67.89, Date: time.Now().AddDate(0, 0, -1)},
+		{ID: 3, Name: "Charlie", Value: 99.99, Date: time.Now().AddDate(0, 0, -2)},
+		{}, // 空行会输出字段类型对应的零值
+	}
+
+	opts := []e2s.WOption{
+		e2s.WithFieldConverter("mytag", func(field interface{}) (interface{}, error) {
+			if v, ok := field.(float64); ok {
+				return 2 * math.Round(v*100) / 100, nil
+			}
+			return int64(0), errors.New("convert fail")
+		}),
+	}
+	structConverter := e2s.NewStructConverter("test_write.xlsx", "./testdata/", "Sheet1", opts...)
+
+	err := structConverter.Writer(ctx, data)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+```
+
 ## 其他
 1. 针对`xls`的可选参数
 ```go
