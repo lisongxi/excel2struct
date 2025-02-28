@@ -206,3 +206,10 @@ excelParser, err := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
 // 注意，虽然数量可以随意设置，但是真正能同时运行的goroutine数量取决于硬件的核心数，
 // 所以当设置的goroutine数量超过CPU核心数时，数量再大也无意义；
 ```
+
+### 5. 其他
+1. 针对`xls`的可选参数
+```go
+// 在解析xls文件时，可选择文件编码
+err = excelParser.Reader(ctx, file, &fileStruct, true, "utf-8") // 非必填
+```
