@@ -99,8 +99,72 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 ```
 
 ### 3. 标签解释
+```go
+`excel`: Excel文件内容的列名，如果在后面接`required`，表示该字段必填。例如`excel:"birthday,required"`；有`excel`标签才可以将`struct字段`与`Excel列`关联起来；
+`parser`: 该字段对应的自定义解析函数。基本类型无需额外添加`parser`，4.2有详细说明；非必须；
+`eIndex`: Excel文件内容的列索引，**从 1 开始计数**。主要是为了解决列名有重名的情况。优先级高于`excel`标签；非必须；
+```
 
 ### 4. 高级用法
 #### 4.1 自定义字段解析函数
+假设你在导入文件时，你希望把Excel文件的`height`列的数据乘以2，应该如何做？
+```go
+type FileStruct struct {
+	ID         int64     `gorm:"id"`
+	Name       string    `gorm:"name" excel:"name,required"`
+	Age        int8      `gorm:"age" excel:"age,required"`
+	Address    string    `gorm:"address" excel:"address"`
+	Birthday   time.Time `gorm:"birthday" excel:"birthday,required"`
+	// 1. 设置自定义解析函数标签"myheight"
+	Height     float64   `gorm:"height" excel:"height,required" parser:"myheight"`
+	IsStaff    bool      `gorm:"id_staff" excel:"isStaff,required"`
+	Speed      int16     `gorm:"speed" excel:"speed"`
+	Hobby      string    `gorm:"hobby" excel:"爱好"`
+	WhatTime   int64     `gorm:"what_time" excel:"whatTime" parser:"unixNano"`
+	CreateTime int64     `gorm:"create_time"`
+}
+
+func main() {
+	ctx := context.Background()
+
+	file, err := os.Open("testdata/test1.xlsx")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+
+// 2. 实现自定义解析函数
+	opts := []Option{
+		WithFieldParser("myheight", func(field string) (interface{}, error) {
+			if len(field) == 0 {
+				return 0.00, nil
+			}
+			f64, err := strconv.ParseFloat(field, 32)
+			if err != nil {
+				return int64(0), err
+			}
+			return 2 * math.Round(f64*100) / 100, nil
+		}),
+	}
+
+// 3. 在创建时将opts作为参数传入，自动注册
+	excelParser, err := excel2struct.NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fileStruct := []*FileStruct{}
+// 4. 无需其他操作。可同时在opts中实现多个解析函数。
+	err = excelParser.Reader(ctx, file, &fileStruct, true)
+	if err != nil {
+		fmt.Print(err)
+	}
+	for _, fs := range fileStruct {
+		fmt.Printf("%+v\n", fs)
+	}
+}
+```
+
 #### 
 #### 4.3 多线程解析
