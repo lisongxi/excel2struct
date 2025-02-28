@@ -7,7 +7,7 @@
 ## 基本使用
 
 > `go get github.com/lisongxi/excel2struct`
-### 1. 入门
+### 入门
 | name  | age | address | birthday   | height | isStaff | speed  | 爱好   | whatTime             |
 |-------|-----|---------|------------|--------|---------|--------|--------|----------------------|
 | Lucas | 18  | China   | 2005/8/17  | 182.5  | T       | 10.5   | 篮球   | 2024-01-09 14:33:09  |
@@ -81,7 +81,7 @@ func main() {
 &{ID:0 Name:小明 Age:23 Address:中国 Birthday:2004-09-09 00:00:00 +0000 UTC Height:182.5 IsStaff:false Speed:12 Hobby: WhatTime:0 CreateTime:0}
 ```
 
-### 2. 参数解释
+### 参数解释
 ```go
 func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) 
 // fileName: 文件名，必填，并且要带文件后缀，例如`.xlsx`，当前版本仅支持xlsx、xls和csv文件，默认xlsx；
@@ -98,15 +98,51 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 //       当skip=true时，表示允许跳过，当required字段为空且无默认值或者解析过程发生错误，则记录错误，并跳过这一行，继续解析下一行；
 ```
 
-### 3. 标签解释
+### 标签解释
 ```go
 `excel`: Excel文件内容的列名，如果在后面接`required`，表示该字段必填。例如`excel:"birthday,required"`；有`excel`标签才可以将`struct字段`与`Excel列`关联起来；
 `parser`: 该字段对应的自定义解析函数。基本类型无需额外添加`parser`，4.2有详细说明；非必须；
 `eIndex`: Excel文件内容的列索引，**从 1 开始计数**。例如`eIndex:"5"`，主要是为了解决列名有重名的情况。优先级高于`excel`标签；非必须；
 ```
 
-### 4. 高级用法
-#### 4.1 自定义字段解析函数
+### 错误信息
+```go
+excelParser, _ := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1")
+err = excelParser.Reader(ctx, file, &fileStruct, true)
+```
+- 创建的`excelParser`有结构体变量`rowErrs  *[]ErrorInfo`，它主要负责收集解析过程发生的错误；
+- 错误信息定义如下：
+```go
+	const (
+		ERROR_UNKNOWN       = 1000
+		ERROR_REQUIRED      = 1001
+		ERROR_PARSE         = 1002
+		ERROR_NOT_REGISTED  = 1003
+		ERROR_FIELD_MATCH   = 1004
+		ERROR_EINDEX_EXCEED = 1005
+	)
+
+	var ERROR_TYPE = map[int]string{
+		ERROR_UNKNOWN:       "unknown error: %s",
+		ERROR_REQUIRED:      "field [%s] is required, but excel data is null: Row [%d]",
+		ERROR_PARSE:         "unable to parse field [%s], Required [%t], Error [%v]",
+		ERROR_NOT_REGISTED:  "parsing func is not registered: Parser tag [%s]",
+		ERROR_FIELD_MATCH:   "no excel title matching found: Struct Field [%s]",
+		ERROR_EINDEX_EXCEED: "the Excel column index settings exceed the line length, field [%s]",
+	}
+
+	type ErrorInfo struct {
+		Row       int
+		Column    string
+		ErrorCode int
+		ErrorMsg  string
+	}
+```
+
+- `excelParser.Reader`返回的错误则是比较严重的错误，例如文件格式错误，`parser`函数未注册等等阻碍解析的严重错误。当`err != nil`时，会直接终止解析。
+
+## 高级用法
+### 自定义字段解析函数
 假设你在导入文件时，你希望把Excel文件的`height`列的数据乘以2，应该如何做？
 ```go
 type FileStruct struct {
@@ -174,7 +210,7 @@ func main() {
 &{ID:0 Name:小明 Age:23 Address:中国 Birthday:2004-09-09 00:00:00 +0000 UTC Height:365 IsStaff:false Speed:12 Hobby: WhatTime:0 CreateTime:0}
 ```
 
-#### 4.2 标签`parser`详解
+### 标签`parser`详解
 1. 当Struct的字段是以下类型时，无需额外添加`parser`
 ```go
 		"string"
@@ -196,7 +232,7 @@ func main() {
 	WhatTime   int64     `gorm:"what_time" excel:"whatTime" parser:"unixNano"`
 ```
 
-#### 4.3 多线程解析
+### 多线程解析
 ```go
 opts := []e2s.Option{
 		e2s.WithWorkers(12), // goroutine数量
@@ -207,7 +243,7 @@ excelParser, err := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
 // 所以当设置的goroutine数量超过CPU核心数时，数量再大也无意义；
 ```
 
-### 5. 其他
+## 其他
 1. 针对`xls`的可选参数
 ```go
 // 在解析xls文件时，可选择文件编码
