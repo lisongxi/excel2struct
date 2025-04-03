@@ -50,7 +50,7 @@ func TestReader(t *testing.T) {
 	}
 	defer file.Close()
 
-	excelParser, err := NewExcelParser("test1.xlsx", 0, "")
+	excelParser, err := NewExcelParser("xlsx", 0, "")
 	assert.Nil(t, err)
 
 	var fileStruct []*FileStruct
@@ -86,7 +86,7 @@ func TestReaderWith(t *testing.T) {
 		}),
 	}
 
-	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
+	excelParser, err := NewExcelParser("xlsx", 0, "Sheet1", opts...)
 	assert.Nil(t, err)
 
 	fileStruct := []*FileWithStruct{}
@@ -106,7 +106,7 @@ func TestReaderWorkers(t *testing.T) {
 	defer file.Close()
 
 	opt := WithWorkers(12)
-	excelParser, err := NewExcelParser("test1.xlsx", 0, "Sheet1", opt)
+	excelParser, err := NewExcelParser("xlsx", 0, "Sheet1", opt)
 	assert.Nil(t, err)
 
 	fileStruct := []*FileStruct{}

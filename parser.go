@@ -11,7 +11,7 @@ import (
 )
 
 type ExcelParser struct {
-	fileName     string
+	fileType     string
 	headerIndex  int
 	sheetName    string
 	fieldParsers map[string]FieldParser
@@ -20,9 +20,9 @@ type ExcelParser struct {
 	workers      int
 }
 
-func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) {
+func NewExcelParser(fileType string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) {
 	excelParser := &ExcelParser{
-		fileName:     fileName,
+		fileType:     fileType,
 		headerIndex:  headerIndex,
 		sheetName:    sheetName,
 		fieldParsers: DefaultFieldParserMap,

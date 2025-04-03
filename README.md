@@ -54,7 +54,7 @@ func main() {
 	}
 	defer file.Close()
 
-	excelParser, err := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1")
+	excelParser, err := e2s.NewExcelParser("xlsx", 0, "Sheet1")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -83,8 +83,8 @@ func main() {
 
 ### 参数解释
 ```go
-func NewExcelParser(fileName string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) 
-// fileName: 文件名，必填，并且要带文件后缀，例如`.xlsx`，当前版本仅支持xlsx、xls和csv文件，默认xlsx；
+func NewExcelParser(fileType string, headerIndex int, sheetName string, opts ...Option) (*ExcelParser, error) 
+// fileType: 文件类型，必填，例如`xlsx`，当前版本仅支持xlsx、xls和csv文件，默认xlsx；
 // headerIndex：标题行所在行数据的下标索引，必填，下标从0开始，并且headerIndex以前的数据行会被忽略;
 // sheetName：sheet名称，如果传入空字符串，则默认解析第一个sheet;
 ```
@@ -107,7 +107,7 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 
 ### 错误信息
 ```go
-excelParser, _ := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1")
+excelParser, _ := e2s.NewExcelParser("xlsx", 0, "Sheet1")
 err = excelParser.Reader(ctx, file, &fileStruct, true)
 ```
 - 创建的`excelParser`有结构体变量`rowErrs  *[]ErrorInfo`，它主要负责收集解析过程发生的错误；
@@ -185,7 +185,7 @@ func main() {
 	}
 
 	// 3. 在创建时将opts作为参数传入，自动注册
-	excelParser, err := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
+	excelParser, err := e2s.NewExcelParser("xlsx", 0, "Sheet1", opts...)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -237,7 +237,7 @@ func main() {
 opts := []e2s.Option{
 		e2s.WithWorkers(12), // goroutine数量
 	}
-excelParser, err := e2s.NewExcelParser("test1.xlsx", 0, "Sheet1", opts...)
+excelParser, err := e2s.NewExcelParser("xlsx", 0, "Sheet1", opts...)
 // 通过e2s.WithWorkers(12)设置goroutine数量为12，可实现异步解析Excel文件。
 // 注意，虽然数量可以随意设置，但是真正能同时运行的goroutine数量取决于硬件的核心数，
 // 所以当设置的goroutine数量超过CPU核心数时，数量再大也无意义；
