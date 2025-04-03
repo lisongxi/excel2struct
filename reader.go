@@ -4,23 +4,20 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
-	"io"
-	"path/filepath"
-
 	"github.com/extrame/xls"
 	"github.com/xuri/excelize/v2"
+	"io"
 )
 
 func (ep *ExcelParser) Reader(ctx context.Context, reader io.ReadSeeker, output interface{}, skip bool, args ...interface{}) (err error) {
 	var rowData [][]string
-	ext := filepath.Ext(ep.fileName)
-	switch ext {
-	case ".xlsx":
+	switch ep.fileType {
+	case "xlsx":
 		rowData, err = ep.ReadXlsxFromReader(reader, ep.sheetName)
 		if err != nil {
 			return
 		}
-	case ".xls":
+	case "xls":
 		e := "utf-8"
 		if len(args) > 0 {
 			e = args[0].(string)
@@ -29,7 +26,7 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.ReadSeeker, output 
 		if err != nil {
 			return
 		}
-	case ".csv":
+	case "csv":
 		rowData, err = ep.ReadCsvFromReader(reader, ep.sheetName)
 		if err != nil {
 			return
