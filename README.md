@@ -103,6 +103,7 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 `excel`: Excel文件内容的列名，如果在后面接`required`，表示该字段必填。例如`excel:"birthday,required"`；有`excel`标签才可以将`struct字段`与`Excel列`关联起来；
 `parser`: 该字段对应的自定义解析函数。基本类型无需额外添加`parser`，4.2有详细说明；非必须；
 `eIndex`: Excel文件内容的列索引，**从 1 开始计数**。例如`eIndex:"5"`，主要是为了解决列名有重名的情况。优先级高于`excel`标签；非必须；
+`default`: 默认值。如果struct字段设置了default标签，且Excel对应单元格为空，则使用default标签的值。非必须。
 ```
 
 ### 错误信息
