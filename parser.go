@@ -15,7 +15,7 @@ type ExcelParser struct {
 	headerIndex  int
 	sheetName    string
 	fieldParsers map[string]FieldParser
-	rowErrs      *[]ErrorInfo
+	RowErrs      *[]ErrorInfo
 	errChan      chan ErrorInfo
 	workers      int
 }
@@ -26,7 +26,7 @@ func NewExcelParser(fileType string, headerIndex int, sheetName string, opts ...
 		headerIndex:  headerIndex,
 		sheetName:    sheetName,
 		fieldParsers: DefaultFieldParserMap,
-		rowErrs:      &[]ErrorInfo{},
+		RowErrs:      &[]ErrorInfo{},
 		errChan:      make(chan ErrorInfo, 10),
 	}
 
@@ -251,7 +251,7 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 func (ep *ExcelParser) AppendErrors(ctx context.Context) {
 	goutils.SafeGo(ctx, func() {
 		for err := range ep.errChan {
-			*ep.rowErrs = append(*ep.rowErrs, err)
+			*ep.RowErrs = append(*ep.RowErrs, err)
 		}
 	})
 }
