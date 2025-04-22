@@ -111,7 +111,7 @@ func (ep *ExcelParser) Reader(ctx context.Context, reader io.Reader, output inte
 excelParser, _ := e2s.NewExcelParser("xlsx", 0, "Sheet1")
 err = excelParser.Reader(ctx, file, &fileStruct, true)
 ```
-- 创建的`excelParser`有结构体变量`rowErrs  *[]ErrorInfo`，它主要负责收集解析过程发生的错误；
+- 创建的`excelParser`有结构体变量`RowErrs  *[]ErrorInfo`，它主要负责收集解析过程发生的错误；
 - 错误信息定义如下：
 ```go
 	const (
