@@ -2,19 +2,21 @@ package excel2struct
 
 import (
 	"context"
-	"github.com/lisongxi/goutils"
 	"reflect"
 	"sync"
+
+	"github.com/lisongxi/goutils"
 )
 
 func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap map[string]FieldMetadata, titleMap map[string]int, structType, sliceType reflect.Type, outputValue reflect.Value, rows [][]string, skip bool) {
+	defer close(ep.errChan)
 	var wg sync.WaitGroup
 
-	rowIndexChan := make(chan int, len(rows))
+	rowIndexChan := make(chan int, ep.workers)
 	resultChan := make(chan struct {
 		index int
 		value reflect.Value
-	}, len(rows))
+	}, ep.workers)
 
 	// workers start
 	for i := 0; i < ep.workers; i++ {
@@ -35,15 +37,19 @@ func (ep *ExcelParser) parseWithWorkers(ctx context.Context, structFieldMetaMap 
 		})
 	}
 
-	// distribute tasks
-	for i := range rows {
-		rowIndexChan <- i
-	}
-	close(rowIndexChan)
+	// 分发任务 distribute tasks
+	go func() {
+		for i := range rows {
+			rowIndexChan <- i
+		}
+		close(rowIndexChan)
+	}()
 
-	// wait for the processing (Map phase) to complete
-	wg.Wait()
-	close(resultChan)
+	// 等待任务完成 wait for task to complete
+	go func() {
+		wg.Wait()
+		close(resultChan) // 只要resultChan未关闭，下面的range resultChan就一直循环读取
+	}()
 
 	// Reduce phase: Collect results
 	resultMap := make(map[int]reflect.Value)
