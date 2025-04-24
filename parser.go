@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/lisongxi/goutils"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/lisongxi/goutils"
 )
 
 type ExcelParser struct {
@@ -39,7 +41,6 @@ func NewExcelParser(fileType string, headerIndex int, sheetName string, opts ...
 }
 
 func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interface{}, skip bool) (err error) {
-	defer close(ep.errChan)
 
 	outputValue := reflect.ValueOf(output)
 	outputType := reflect.TypeOf(output)
@@ -118,7 +119,6 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 	}
 
 	rows = rows[ep.headerIndex+1:]
-	ep.AppendErrors(ctx)
 
 	if ep.workers == 0 {
 		results := reflect.MakeSlice(sliceType, 0, len(rows))
@@ -132,7 +132,11 @@ func (ep *ExcelParser) Parse(ctx context.Context, rows [][]string, output interf
 		}
 		outputValue.Elem().Set(results)
 	} else {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		ep.AppendErrors(ctx, &wg)
 		ep.parseWithWorkers(ctx, structFieldMetaMap, titleMap, structType, sliceType, outputValue, rows, skip)
+		wg.Wait()
 	}
 
 	return
@@ -171,12 +175,18 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 				return fmt.Errorf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex)
 			}
 			if fieldMeta.Required {
-				ep.errChan <- ErrorInfo{
+				ei := ErrorInfo{
 					Row:       rowIndex,
 					Column:    excelTag,
 					ErrorCode: ERROR_REQUIRED,
 					ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_REQUIRED], excelTag, rowIndex),
 				}
+				if ep.workers == 0 {
+					*ep.RowErrs = append(*ep.RowErrs, ei)
+				} else {
+					ep.errChan <- ei
+				}
+
 				return nil
 			}
 			continue
@@ -192,12 +202,18 @@ func (ep *ExcelParser) parseRowToStruct(ctx context.Context, rowIndex int, struc
 			if !skip && fieldMeta.Required {
 				return fmt.Errorf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err)
 			}
-			ep.errChan <- ErrorInfo{
+			ei := ErrorInfo{
 				Row:       rowIndex,
 				Column:    excelTag,
 				ErrorCode: ERROR_PARSE,
 				ErrorMsg:  fmt.Sprintf(ERROR_TYPE[ERROR_PARSE], fieldMeta.FName, fieldMeta.Required, err),
 			}
+			if ep.workers == 0 {
+				*ep.RowErrs = append(*ep.RowErrs, ei)
+			} else {
+				ep.errChan <- ei
+			}
+
 			if fieldMeta.Required {
 				return nil
 			}
@@ -248,8 +264,9 @@ func (ep *ExcelParser) parseTitle(row []string, structFieldMetaMap map[string]Fi
 	return titleMap, nil
 }
 
-func (ep *ExcelParser) AppendErrors(ctx context.Context) {
+func (ep *ExcelParser) AppendErrors(ctx context.Context, wg *sync.WaitGroup) {
 	goutils.SafeGo(ctx, func() {
+		defer wg.Done()
 		for err := range ep.errChan {
 			*ep.RowErrs = append(*ep.RowErrs, err)
 		}
